@@ -343,6 +343,37 @@ void ts_tls_cert_parse(SSL *ssl, struct tls_cert *tls_cert,
   if (SSL_get_server_tmp_key(ssl, &key)) {
     tls_cert->temp_pubkey_size =
             get_public_keyalg_and_keylen(key, tls_cert->temp_pubkey_alg, true);
+     // Get the DH key in hexadecimal format and store it
+  if (EVP_PKEY_base_id(key) == EVP_PKEY_DH) {
+    const BIGNUM *pub_key = NULL;
+#if OPENSSL_VERSION_NUMBER >= 0x10100000L
+    DH *dh = EVP_PKEY_get1_DH(key);
+    if (dh != NULL) {
+      DH_get0_key(dh, &pub_key, NULL);
+      if (pub_key != NULL) {
+        char *hex = BN_bn2hex(pub_key);
+        if (hex != NULL) {
+          tls_cert->dh_key_hex = strdup(hex); // Allocate and copy the hexadecimal string
+          OPENSSL_free(hex); // Free the memory allocated by BN_bn2hex
+        }
+      }
+      DH_free(dh); // Free the DH structure
+    }
+#else
+    DH *dh = EVP_PKEY_get1_DH(key);
+    if (dh != NULL) {
+      pub_key = dh->pub_key;
+      if (pub_key != NULL) {
+        char *hex = BN_bn2hex(pub_key);
+        if (hex != NULL) {
+          tls_cert->dh_key_hex = strdup(hex); // Allocate and copy the hexadecimal string
+          OPENSSL_free(hex); // Free the memory allocated by BN_bn2hex
+        }
+      }
+      DH_free(dh); // Free the DH structure
+    }
+#endif
+  }
     EVP_PKEY_free(key);
   }
 
@@ -694,6 +725,11 @@ void ts_tls_print_json(struct tls_cert *tls_cert, FILE *fp, bool pretty)
 
     fprintf(fp, "%.*s\"tempPublicKeySize\": %d,%c", FMT_INDENT(2),
                                               tls_cert->temp_pubkey_size, fmt);
+  }
+
+  if (tls_cert->dh_key_hex != NULL) {		  
+    fprintf(fp, "%.*s\"DHKey\": \"%s\",%c", FMT_INDENT(2),
+                                              tls_cert->dh_key_hex, fmt);
   }
 
   fprintf(fp, "%.*s\"secureRenego\": %s,%c", FMT_INDENT(2),
