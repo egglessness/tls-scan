@@ -92,7 +92,7 @@ struct tls_cert {
   struct timeval start_time;
   // aggregate time per host
   int elapsed_time_ms;
-  char *dh_key_hex;
+  char *dh_p;
 };
 
 void ts_tls_cert_BIO_free(struct tls_cert *tls_cert);
